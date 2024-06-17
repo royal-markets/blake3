@@ -2,7 +2,7 @@ defmodule MixBlake3.Project do
   use Mix.Project
 
   @source_url "https://github.com/Thomas-Jean/blake3"
-  @version "1.0.2"
+  @version "1.0.3"
 
   @rayon Application.compile_env(:blake3, :rayon, System.get_env("BLAKE3_RAYON"))
   @simd_mode Application.compile_env(:blake3, :simd_mode, System.get_env("BLAKE3_SIMD_MODE"))
