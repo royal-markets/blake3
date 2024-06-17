@@ -1,71 +1,62 @@
 name: CI
 
 on:
+  pull_request:
   push:
-    branches: ["*"]
+    branches:
+      - main
+    paths:
+      - "lib/**/*"
+      - "test/**/*"
+      - "native/**/*"
 
 env:
   MIX_ENV: test
+  BLAKE3_BUILD: true
 
 jobs:
   test:
-    name: OTP ${{ matrix.otp }} / Elixir ${{ matrix.elixir }} / Rust ${{ matrix.rust }}
+    name: Elixir ${{ matrix.pair.elixir }} / OTP ${{ matrix.pair.otp }}
     runs-on: ubuntu-20.04
-    strategy:
-      matrix:
-        elixir: ["1.13", "1.14", "1.15"]
-        otp: ["23", "24", "25", "26"]
-        rust: ["stable"]
-        exclude:
-          - elixir: "1.14"
-            otp: "24"
-          - elixir: "1.13"
-            otp: "25"
-          - elixir: "1.13"
-            otp: "26"
-          - elixir: "1.15"
-            otp: "23"
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pair:
+              elixir: 1.14.3
+              otp: 25.2.1
+          - pair:
+              elixir: 1.15.6
+              otp: 26.1
+            lint: lint
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - uses: erlef/setup-beam@v1
+      - uses: actions/checkout@v3
+
+      - uses: erlef/setup-beam@v1.15
         with:
-          otp-version: ${{ matrix.otp }}
-          elixir-version: ${{ matrix.elixir }}
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
-      - name: Cache Elixir deps
-        uses: actions/cache@v3
-        with:
-          path: |
-            deps
-            _build
-          key: deps-cache-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('**/mix.lock') }}
-          restore-keys: |
-            deps-cache-${{ matrix.elixir }}-${{ matrix.otp }}-
-      - name: Cache Rust deps
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ matrix.rust }}-cargo-
-      - name: Install elixir dependencies
-        run: mix do local.hex --force, local.rebar --force, deps.get
-      - name: Check code formatting
+          otp-version: ${{ matrix.pair.otp }}
+          elixir-version: ${{ matrix.pair.elixir }}
+
+      - name: Install minimal stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Dependencies
+        run: mix deps.get
+
+      - name: Check formatting
         run: mix format --check-formatted
-      - name: Compile dependencies
+        if: ${{ matrix.lint }}
+
+      - name: Check unused deps
+        run: mix deps.unlock --check-unused
+        if: ${{ matrix.lint }}
+
+      - name: Compile deps
         run: mix deps.compile
-      - name: Compile code (warnings as errors)
+
+      - name: Compile
         run: mix compile --warnings-as-errors
-      - name: Run tests
+
+      - name: Test
         run: mix test
-      - name: Create docs
-        run: mix docs
